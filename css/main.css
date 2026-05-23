@@ -1,0 +1,194 @@
+:root {
+
+    /* =================== COLORS =================== */
+    --color-black: #1E110D;
+    --color-white: #F2F2F2;
+
+    /* =================== TYPOGRAPHY =================== */
+
+    --font-main: 'Mohave', sans-serif;
+
+    /* sizes */
+    --text-sm: 0.8vw;
+    --text-md: 1vw;
+    --text-lg: 1.2vw;
+    --h1: 4vw;
+    --h2: 2.5vw;
+    --h3: 1.8vw;
+
+    /* font-weight */
+    --text-light: 300;
+    --text-bold: 500;
+
+    /* line-height */
+    --line-height: 1.5;
+
+    /* text-transform */
+    --text-uppercase: uppercase;
+
+    /* =================== SPACING =================== */
+
+    --space-xxs: 0.2vw;
+    --space-xs: 0.5vw;
+	--space-sm: 1vw;
+	--space-md: 1.5vw;
+	--space-lg: 2vw;
+	--space-xl: 4vw;
+    --space-xxl: 5vw;
+
+    /* =================== SHADOW =================== */
+    --shadow-sm: 0px 4px 40px 0px rgba(30, 17, 13, 0.05);
+    --shadow-sm-top: 0px -4px 40px 0px rgba(30, 17, 13, 0.05);
+
+    /* =================== BORDER =================== */
+    --border-white: 0.1vw solid #F2F2F2;
+    --border-black: 0.1vw solid #1E110D;
+    --radius: 8px;
+    --radius-lg: 24px;
+
+    /* =================== HEIGHT =================== */
+
+    --header-height: 5vh;
+    --height-xxl: 12vh;
+    --height-xl: 8vh;
+    --height-lg: 6vh;
+    --height-md: 4vh;
+    --height-sm: 3vh;
+    --height-xs: 2vh;
+
+    --container-width: 80vw;
+    --container__politics-width: 30vw;
+    --container__brand-width: 80vw;
+}
+
+@media (max-width: 768px) {
+    :root {
+        /* Typography - увеличь чтобы не было слишком мелко */
+        --text-sm: 3vw;
+        --text-md: 3.5vw;
+        --text-lg: 4vw;
+        --h1: 8vw;
+        --h2: 6vw;
+        --h3: 4.5vw;
+
+        /* Spacing - уменьши */
+        --space-xxs: 1vw;
+        --space-xs: 2vw;
+        --space-sm: 3vw;
+        --space-md: 4vw;
+        --space-lg: 5vw;
+        --space-xl: 6vw;
+        --space-xxl: 8vw;
+
+        /* Container */
+        --container-width: 90vw;
+        --container__brand-width: 90vw;
+
+        .header {
+        height: auto;
+    }
+
+    .h1 {
+        font-size: var(--h1);
+    }
+
+    /* Если у тебя есть сетка (grid/flex) - переделай на одну колонку */
+    .products-grid,
+    .collections-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-md);
+    }
+
+    .product-card {
+        flex: 0 1 100%;
+    }
+
+    .product-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .gallery__overlay,
+    .gallery__overlay2 {
+        display: none; /* или position: static если нужны */
+    }
+    }
+
+    }
+
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--font-main);
+    overflow-x: hidden;
+}
+
+.h1 {
+    font-family: var(--font-main);
+    font-size: var(--h1);
+    font-weight: var(--text-light);
+    text-transform: var(--text-uppercase);
+}
+
+.h2 {
+    font-family: var(--font-main);
+    font-size: var(--h2);
+    font-weight: var(--text-light);
+    text-transform: var(--text-uppercase);
+}
+
+.h3 {
+    font-family: var(--font-main);
+    font-size: var(--h3);
+    font-weight: var(--text-light);
+    text-transform: var(--text-uppercase);
+}
+
+.t1 {
+    font-family: var(--font-main);
+    font-size: var(--text-lg);
+    font-weight: var(--text-light);
+    text-transform: var(--text-uppercase);
+    line-height: var(--line-height);
+}
+
+.t2 {
+    font-family: var(--font-main);
+    font-size: var(--text-md);
+    font-weight: var(--text-light);
+    text-transform: var(--text-uppercase);
+    line-height: var(--line-height);
+}
+
+.t3 {
+    font-family: var(--font-main);
+    font-size: var(--text-sm);
+    font-weight: var(--text-light);
+    text-transform: var(--text-uppercase);
+    line-height: var(--line-height);
+}
+
+.bold {
+   font-weight: var(--text-bold); 
+}
+
+.product__title {
+    font-family: var(--font-main);
+    font-size: var(--h2);
+    font-weight: var(--text-light);
+    text-transform: var(--text-uppercase);
+}
+
+.product__price {
+    font-family: var(--font-main);
+    font-size: var(--h3);
+    font-weight: var(--text-light);
+    text-transform: var(--text-uppercase);
+}
+
+a {
+    color: var(--color-black);
+    text-decoration: none;
+}
