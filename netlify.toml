@@ -1,6 +1,0 @@
-[build]
-  functions = "netlify/functions"
-  command = "npm install"
-
-[images]
-  remote_images = ["https://.*\\.strapiapp\\.com/.*"]
