@@ -1,0 +1,369 @@
+/* ==========================================================================
+   HEADER
+   ========================================================================== */
+
+.header {
+    box-shadow: var(--shadow-sm);
+    background-color: var(--color-white);
+}
+
+.link {
+    color: var(--color-black);
+    text-decoration: underline;
+}
+
+
+.header__link {
+    font-size: var(--text-md);
+    text-decoration: none;
+    color: var(--color-black);
+    transition: var(--transition);
+    text-transform: var(--text-uppercase);
+    font-weight: var(--text-light);
+}
+
+.header__link:hover {
+    text-decoration: underline;
+}
+
+.header__icon {
+    cursor: pointer;
+    border: none;
+}
+
+.header__lang {
+    position: relative;
+}
+
+.header__lang-btn {
+    border: none;
+}
+
+.header__lang-btn span {
+    font-family: var(--font-main);
+    font-size: var(--text-md);
+    font-weight: var(--text-light);
+}
+
+.header__lang-dropdown {
+    width: var(--space-xl);
+    position: absolute;
+    top: 100%;
+    right: 0;
+
+    background: var(--color-white);
+    border: 1px solid var(--color-border);
+
+    display: none;
+}
+
+.header__lang--open .header__lang-dropdown {
+    display: block;
+}
+
+/* ==========================================================================
+   FOOTER
+   ========================================================================== */
+
+
+.footer__link {
+    font-size: var(--text-sm);
+    text-decoration: none;
+    color: var(--color-white);
+    transition: var(--transition);
+    text-transform: var(--text-uppercase);
+    font-weight: var(--text-light);
+}
+
+.footer__link:hover {
+    text-decoration: underline;
+}
+
+.footer__text {
+    font-size: var(--text-sm);
+    text-decoration: none;
+    color: var(--color-white);
+    transition: var(--transition);
+    text-transform: var(--text-uppercase);
+    font-weight: var(--text-light);
+    max-width: 20vw;
+}
+
+.footer__form__input {
+    background: none;
+    border: var(--border-white);
+    border-radius: var(--radius);
+    padding: 0 1vw;
+    font-family: var(--font-main);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    text-transform: var(--text-uppercase);
+    color: var(--color-white);
+}
+
+.footer__form__btn {
+    font-family: var(--font-main);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    text-transform: var(--text-uppercase);
+    font-weight: var(--text-light);
+    border: none;
+    background: var(--color-white);
+    border-radius: var(--radius);
+}
+
+@media (max-width: 768px) { 
+    .footer__link {
+    font-size: var(--text-lg);
+    text-decoration: none;
+    color: var(--color-white);
+    transition: var(--transition);
+    text-transform: var(--text-uppercase);
+    font-weight: var(--text-light);
+}
+
+.footer__text {
+    font-size: var(--text-lg);
+    text-decoration: none;
+    color: var(--color-white);
+    transition: var(--transition);
+    text-transform: var(--text-uppercase);
+    font-weight: var(--text-light);
+    max-width: 60vw;
+}
+}
+
+input::placeholder {
+    font-family: var(--font-main);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    text-transform: var(--text-uppercase);
+    font-weight: var(--text-light);
+}
+
+
+
+main {
+    background-color: var(--color-white);
+}
+
+/* ==========================================================================
+   BANNER
+   ========================================================================== */
+
+
+.banner__text {
+    font-size: var(--text-md);
+    color: var(--color-white);
+    text-transform: var(--text-uppercase);
+    font-weight: var(--text-light);
+}
+
+.banner--home__text {
+    font-size: var(--text-md);
+    color: var(--color-white);
+    text-transform: var(--text-uppercase);
+    font-weight: var(--text-light);
+}
+
+/* ==========================================================================
+   PRODUCT CARD
+   ========================================================================== */
+
+
+.product-card__text {
+    display: flex;
+    justify-content: space-between;
+}
+
+.product-card__title {
+    font-size: var(--text-md);
+    margin: 0;
+    text-transform: var(--text-uppercase);
+    font-weight: var(--text-light);
+}
+
+.product-card__price {
+    font-size: var(--text-md);
+    margin: 0;
+    font-weight: var(--text-light);
+}
+
+/* --------- БЕЙДЖ (скидка / распродано) --------- */
+ 
+.product-card__badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 2;
+    padding: 4px 8px;
+    font-family: var(--font-main);
+    font-size: var(--text-md);
+    font-weight: var(--text-light);
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+    background: var(--color-sale);
+    color: #fff;
+    border-radius: 4px;
+    pointer-events: none;
+}
+ 
+/* Распродано: меняем только фон, всё остальное наследуется от базового бейджа,
+   поэтому он встаёт ровно туда же, где стоит «% OFF» */
+.product-card__badge--sold-out {
+    background: var(--color-sold-out, #1E110D);
+}
+ 
+/* Приглушаем карточку распроданного товара.
+   Оверлей на ::after, а не opacity на картинке — иначе сломается
+   hover-подмена изображения, которая работает через opacity.
+   z-index: 1 — оверлей ложится поверх обеих картинок, но под бейдж (z-index: 2) */
+.product-card--sold-out .product-card__media::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: #fff;   /* ← заменить на светлую переменную бренда, если она есть */
+    opacity: 0.45;
+    pointer-events: none;
+}
+ 
+/* --------- ЦЕНА СО СКИДКОЙ --------- */
+ 
+.product-card__price--sale {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+ 
+.product-card__price-new {
+    color: var(--color-sale);
+}
+ 
+.product-card__price-old {
+    color: var(--color-price-old);
+    text-decoration: line-through;
+}
+ 
+/* --------- МОБИЛЬНАЯ АДАПТАЦИЯ --------- */
+ 
+@media (max-width: 768px) {
+    .product-card__badge {
+        top: 6px;
+        left: 6px;
+        padding: 3px 6px;
+    }
+}
+
+
+/* ==========================================================================
+   WhatsApp floating button — HEBRANTE
+   Подключать в общий стиль сайта (или отдельным <link> в <head>).
+   Размеры и отступы вынесены в переменные — правь их, не правила ниже.
+   ========================================================================== */
+
+.wa-fab {
+  --wa-size: 56px;              /* диаметр на десктопе */
+  --wa-offset-right: 24px;      /* отступ от правого края */
+  --wa-offset-bottom: 24px;     /* отступ от низа экрана */
+  --wa-bg: #1E110D;
+  --wa-bg-hover: #351E17;
+  --wa-fg: #F2F2F2;             /* цвет иконки — тёмно-коричневый бренда */
+  --wa-shadow: 0 2px 14px rgba(0, 0, 0, .16);
+
+  position: fixed;
+  right: var(--wa-offset-right);
+  /* safe-area — чтобы на iPhone кнопку не резала нижняя панель Safari */
+  bottom: calc(var(--wa-offset-bottom) + env(safe-area-inset-bottom, 0px));
+  z-index: 10000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--wa-size);
+  height: var(--wa-size);
+  border-radius: 50%;
+
+  background: var(--wa-bg);
+  border: 1px solid var(--wa-fg);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--wa-shadow);
+  color: var(--wa-fg);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+
+  /* по умолчанию скрыта — показывает JS после прелоадера */
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity .35s ease, transform .35s ease,
+              background-color .2s ease, box-shadow .2s ease;
+}
+
+.wa-fab.is-visible {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.wa-fab svg {
+  width: calc(var(--wa-size) * .5);
+  height: calc(var(--wa-size) * .5);
+  display: block;
+  fill: currentColor;
+}
+
+/* --- состояния --- */
+
+.wa-fab:hover {
+  background: var(--wa-bg-hover);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .2);
+}
+
+.wa-fab:active {
+  transform: scale(.94);
+  transition-duration: .1s;
+}
+
+.wa-fab:focus-visible {
+  outline: 2px solid var(--wa-fg);
+  outline-offset: 3px;
+}
+
+/* --- мобильные --- */
+
+@media (max-width: 768px) {
+  .wa-fab {
+    --wa-size: 50px;
+    --wa-offset-right: 16px;
+    --wa-offset-bottom: 16px;
+  }
+
+  /* на тач-устройствах hover залипает после тапа — гасим */
+  .wa-fab:hover {
+    background: var(--wa-bg);
+    box-shadow: var(--wa-shadow);
+  }
+}
+
+/* Страница товара: поднять кнопку над липкой «Añadir al carrito».
+   Повесь класс на <body> карточки товара, если такая кнопка есть. */
+@media (max-width: 768px) {
+  body.has-sticky-cta .wa-fab {
+    --wa-offset-bottom: 82px;
+  }
+}
+
+/* --- доступность --- */
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-fab {
+    transition: opacity .01s linear;
+    transform: none;
+  }
+  .wa-fab:active { transform: none; }
+}
