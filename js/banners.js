@@ -8,36 +8,57 @@ import { getLanguage } from "./lang.js"
  * - каждый баннер состоит из 1 или 2 "слотов" (banner.slot компонент):
  *     content      — обязательный, единственный слот ИЛИ левая/верхняя половина
  *     content_2    — необязательный, правая половина (когда split = true)
- * - у каждого слота своя картинка (+ мобильная), свои три текстовых блока
- *   (eyebrow/heading/subheading, каждый — необязательный), своя кнопка
- *   (необязательная, с собственными цветами), своё горизонтальное выравнивание
- *   текстового блока (content_align) и своя цель клика
+ * - у каждого слота своя картинка (+ мобильная), необязательное видео
+ *   (+ мобильное), свои три текстовых блока (eyebrow/heading/subheading,
+ *   каждый — необязательный), своя кнопка (необязательная, с собственными
+ *   цветами), своё горизонтальное выравнивание текстового блока
+ *   (content_align) и своя цель клика
  *   (collection ИЛИ products, взаимоисключение проверяется на бэкенде)
  * - сетка продуктов создаётся под каждым слотом, у которого есть collection
  *   ИЛИ конкретные products
- * - на мобильном используется image_mobile, если оно заполнено
+ * - на мобильном используются image_mobile / video_mobile, если заполнены
  * - split-баннеры делятся строго слева/направо, на мобильном верстка
  *   не переключается на "столбик" — просто сжимается
+ *
+ * ВИДЕО:
+ * Картинка слота остаётся обязательной всегда — она задаёт высоту баннера,
+ * работает постером и остаётся единственным, что видно, если видео не
+ * запустилось. Видео лежит поверх картинки абсолютом и не влияет на layout.
+ * Не запуститься оно может законно и часто: режим энергосбережения на iOS,
+ * системная настройка "уменьшить движение", неподдерживаемый кодек.
+ * Во всех этих случаях молча остаётся постер — это не ошибка.
  */
 
 // ВАЖНО: должно совпадать с брейкпоинтом в CSS (@media max-width: 768px)
 const MOBILE_QUERY = "(max-width: 768px)"
 const mobileMQ = window.matchMedia(MOBILE_QUERY)
 
+// Системная настройка "уменьшить движение". Если она включена — видео не
+// грузим вообще (не просто прячем): человеку оно не нужно, а трафик экономим.
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)"
+const reducedMotionMQ = window.matchMedia(REDUCED_MOTION_QUERY)
+
 // Допустимые значения enum-поля `content_align` в Strapi.
 // Выравнивание ТОЛЬКО по горизонтали — по вертикали блок всегда прижат к низу
 // баннера (это задано в CSS и в Strapi не настраивается).
-// Порядок важен только для читаемости; классы в CSS называются так же.
 const CONTENT_ALIGN_VALUES = ["left", "center", "right"]
 const CONTENT_ALIGN_DEFAULT = "left"
 
-// Реестр отрендеренных картинок — нужен, чтобы переключать image/image_mobile
-// при ресайзе. Каждая запись — это ОДНА картинка одного слота (не баннер целиком,
-// у split-баннера их две).
-const imageRegistry = []
+// Реестр отрендеренных слотов — нужен, чтобы переключать desktop/mobile версии
+// картинки и видео при ресайзе. Каждая запись — ОДИН слот (у split-баннера их две).
+const mediaRegistry = []
+
+// Наблюдатель видимости: видео играет только пока баннер в зоне видимости.
+// Без этого три-четыре автоплеящихся ролика ниже первого экрана будут
+// молотить в фоне и жрать батарею.
+let visibilityObserver = null
 
 function isMobile() {
   return mobileMQ.matches
+}
+
+function prefersReducedMotion() {
+  return reducedMotionMQ.matches
 }
 
 /**
@@ -51,8 +72,7 @@ function getManualProducts(slotData) {
  * Возвращает горизонтальное выравнивание текстового блока слота.
  * Если поле не заполнено (старые баннеры, созданные до добавления поля),
  * не пришло из API или содержит мусор — отдаём "left", то есть поведение
- * ровно такое же, как было раньше. Это гарантирует, что ни один существующий
- * баннер не изменит вид после деплоя.
+ * ровно такое же, как было раньше.
  */
 function getContentAlign(slotData) {
   const raw = String(slotData?.content_align ?? "").trim().toLowerCase()
@@ -82,6 +102,19 @@ function pickSlotImage(slotData) {
   return (isMobile() && mobile) ? mobile : desktop
 }
 
+/**
+ * Возвращает { url, mime } видео слота под текущую ширину экрана или null,
+ * если видео у слота нет. Логика выбора та же, что у картинок: мобильное
+ * используется только если оно реально загружено.
+ */
+function pickSlotVideo(slotData) {
+  const desktop = slotData?.video
+  const mobile = slotData?.video_mobile
+  const chosen = (isMobile() && mobile?.url) ? mobile : desktop
+  if (!chosen?.url) return null
+  return { url: chosen.url, mime: chosen.mime || "" }
+}
+
 function applyImage(imgEl, slotData, bannerSlug, isPriority) {
   if (!imgEl) return
 
@@ -108,9 +141,137 @@ function applyImage(imgEl, slotData, bannerSlug, isPriority) {
   imgEl.style.display = "block"
 }
 
-// Переключаем картинки при смене брейкпоинта (поворот экрана, ресайз, девтулзы)
+/**
+ * Находит <video> слота, а если его нет в разметке — создаёт.
+ * Второй случай — это hero: он лежит статикой в index.html и про видео
+ * ничего не знает. Так правка index.html не требуется.
+ */
+function ensureVideoEl(slotEl, imgEl) {
+  const existing = slotEl.querySelector(".banner__video")
+  if (existing) return existing
+
+  const videoEl = document.createElement("video")
+  videoEl.className = "banner__video"
+  // muted + playsinline — обязательное условие автоплея во всех браузерах.
+  // Ставим и свойством, и атрибутом: свойство надёжнее для уже созданного
+  // элемента, атрибут — для тех браузеров, что смотрят на разметку.
+  videoEl.muted = true
+  videoEl.defaultMuted = true
+  videoEl.setAttribute("muted", "")
+  videoEl.setAttribute("playsinline", "")
+  videoEl.setAttribute("webkit-playsinline", "")
+  videoEl.setAttribute("disablepictureinpicture", "")
+  videoEl.loop = true
+  videoEl.hidden = true
+  videoEl.append(document.createElement("source"))
+
+  if (imgEl?.parentNode) imgEl.insertAdjacentElement("afterend", videoEl)
+  else slotEl.prepend(videoEl)
+
+  return videoEl
+}
+
+/**
+ * Пытается запустить видео. play() возвращает промис, который отклоняется,
+ * если браузер автоплей не разрешил — тогда прячем видео и оставляем постер.
+ * AbortError игнорируем: он прилетает, когда pause() случился раньше, чем
+ * успел стартовать play() (например, пользователь быстро проскроллил мимо).
+ */
+function safePlay(videoEl) {
+  const attempt = videoEl.play()
+  if (!attempt?.catch) return
+  attempt.catch(error => {
+    if (error?.name === "AbortError") return
+    videoEl.hidden = true
+  })
+}
+
+function getVisibilityObserver() {
+  if (visibilityObserver || !("IntersectionObserver" in window)) return visibilityObserver
+
+  visibilityObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      const videoEl = entry.target
+      if (videoEl.hidden) return
+      if (entry.isIntersecting) safePlay(videoEl)
+      else videoEl.pause()
+    })
+  }, { rootMargin: "200px 0px" })
+
+  return visibilityObserver
+}
+
+/**
+ * Настраивает видео слота. Вызывается и при первом рендере, и при смене
+ * брейкпоинта — поэтому обязан уметь как включать видео, так и выключать
+ * его обратно (например, на мобильном видео есть, а на десктопе нет).
+ */
+function applyVideo(videoEl, slotData, bannerSlug, isPriority) {
+  if (!videoEl) return
+
+  const video = prefersReducedMotion() ? null : pickSlotVideo(slotData)
+  const sourceEl = videoEl.querySelector("source") ||
+                   videoEl.appendChild(document.createElement("source"))
+  const currentUrl = sourceEl.getAttribute("src") || ""
+
+  // Видео нет (или отключено настройкой движения) — выключаем и чистим,
+  // чтобы браузер не держал загруженный файл в памяти.
+  if (!video) {
+    getVisibilityObserver()?.unobserve(videoEl)
+    videoEl.hidden = true
+    videoEl.pause()
+    if (currentUrl) {
+      sourceEl.removeAttribute("src")
+      sourceEl.removeAttribute("type")
+      videoEl.load()
+    }
+    return
+  }
+
+  videoEl.muted = true
+  videoEl.loop = true
+  videoEl.poster = pickSlotImage(slotData)
+  // Первый баннер на экране сразу тянет метаданные, остальные ждут,
+  // пока к ним доскроллят — за этим следит IntersectionObserver ниже.
+  videoEl.preload = isPriority ? "metadata" : "none"
+  videoEl.hidden = false
+
+  if (currentUrl !== video.url) {
+    sourceEl.setAttribute("src", video.url)
+    // type помогает браузеру отсечь неподдерживаемый формат (например,
+    // quicktime от клиента) не скачивая файл — останется просто постер.
+    if (video.mime) sourceEl.setAttribute("type", video.mime)
+    else sourceEl.removeAttribute("type")
+    videoEl.load()
+  }
+
+  if (!video.mime) {
+    console.warn(`⚠️ Баннер ${bannerSlug} — у видео не пришёл mime, браузер определит формат сам`)
+  }
+
+  const observer = getVisibilityObserver()
+  if (observer) {
+    observer.observe(videoEl)
+  } else {
+    // Старый браузер без IntersectionObserver — играем сразу, без ленивости.
+    safePlay(videoEl)
+  }
+}
+
+function applySlotMedia({ imgEl, videoEl, data, slug, isPriority }) {
+  applyImage(imgEl, data, slug, isPriority)
+  applyVideo(videoEl, data, slug, isPriority)
+}
+
+// Переключаем медиа при смене брейкпоинта (поворот экрана, ресайз, девтулзы)
 mobileMQ.addEventListener("change", () => {
-  imageRegistry.forEach(({ imgEl, data, slug, isPriority }) => applyImage(imgEl, data, slug, isPriority))
+  mediaRegistry.forEach(applySlotMedia)
+})
+
+// И при смене системной настройки "уменьшить движение" — тогда видео
+// либо подгружается, либо выгружается на лету.
+reducedMotionMQ.addEventListener("change", () => {
+  mediaRegistry.forEach(applySlotMedia)
 })
 
 export async function renderBanners() {
@@ -152,8 +313,13 @@ export async function renderBanners() {
           const source = manual.length
             ? `products(${manual.length})`
             : (s.collection?.slug ? `collection:${s.collection.slug}` : "—")
-          // align показываем в логе — так сразу видно, пришло ли поле из API
-          return `${source}${s.image_mobile?.url ? " +mobile" : ""} @${getContentAlign(s)}`
+          const media = [
+            s.image_mobile?.url ? "+mobile" : "",
+            s.video?.url ? "+video" : "",
+            s.video_mobile?.url ? "+video_mobile" : ""
+          ].filter(Boolean).join(" ")
+          // align и медиа показываем в логе — сразу видно, что дошло из API
+          return `${source}${media ? " " + media : ""} @${getContentAlign(s)}`
         }).join(" | ")
         return `${b.order ?? "—"}: ${b.slug}${b.split ? " [split]" : ""} → ${desc}`
       }))
@@ -169,7 +335,12 @@ export async function renderBanners() {
       if (el !== hero && el !== promoBar) el.remove()
     })
 
-    imageRegistry.length = 0
+    // Старые <video> из прошлого рендера отписываем от наблюдателя:
+    // сами элементы уже удалены из DOM, но ссылки на них держал observer.
+    visibilityObserver?.disconnect()
+    visibilityObserver = null
+
+    mediaRegistry.length = 0
     const productTasks = []
     let heroConsumed = false
 
@@ -202,8 +373,17 @@ export async function renderBanners() {
         heroConsumed = true
 
         const imgEl = slotEl.querySelector(".banner__image")
-        imageRegistry.push({ imgEl, data: slotData, slug: bannerData.slug, isPriority })
-        updateSlot(slotEl, imgEl, slotData, bannerData.slug, isPriority)
+        const videoEl = ensureVideoEl(slotEl, imgEl)
+
+        const mediaEntry = {
+          imgEl,
+          videoEl,
+          data: slotData,
+          slug: bannerData.slug,
+          isPriority
+        }
+        mediaRegistry.push(mediaEntry)
+        updateSlot(slotEl, mediaEntry, slotData)
 
         const manualProducts = getManualProducts(slotData)
 
@@ -264,8 +444,16 @@ function slotInnerHTML() {
   // Класс выравнивания здесь не ставим — его вешает applyContentAlign()
   // из данных Strapi, чтобы логика была в одном месте и одинаково работала
   // и для сгенерированных баннеров, и для статичного hero из HTML.
+  //
+  // <video> присутствует всегда, но по умолчанию hidden — включает его
+  // applyVideo(), только если в слоте реально есть видео. Порядок элементов
+  // важен: картинка задаёт высоту баннера, видео лежит поверх неё абсолютом,
+  // блок с текстом идёт последним и оказывается выше обоих.
   return `
     <img class="banner__image" src="" alt="banner" loading="lazy">
+    <video class="banner__video" muted loop playsinline webkit-playsinline disablepictureinpicture preload="none" hidden>
+      <source>
+    </video>
     <div class="banner--home__content">
       <div class="banner__text"></div>
       <button type="button" class="banner__button" hidden></button>
@@ -289,14 +477,15 @@ function createGridSection() {
 }
 
 /**
- * Заполняет один слот (картинка, текст, кнопка, выравнивание, клик)
+ * Заполняет один слот (медиа, текст, кнопка, выравнивание, клик)
  * данными из Strapi.
  * slotEl — это либо весь баннер целиком (не split), либо .banner__half (split).
+ * mediaEntry — запись из mediaRegistry: { imgEl, videoEl, data, slug, isPriority }.
  */
-function updateSlot(slotEl, imgEl, slotData, bannerSlug, isPriority) {
+function updateSlot(slotEl, mediaEntry, slotData) {
   const lang = getLanguage()
 
-  applyImage(imgEl, slotData, bannerSlug, isPriority)
+  applySlotMedia(mediaEntry)
 
   const content = slotEl.querySelector(".banner__content") ||
                   slotEl.querySelector(".banner--home__content")
@@ -352,8 +541,8 @@ function updateSlot(slotEl, imgEl, slotData, bannerSlug, isPriority) {
   // - привязан к коллекции → ведём на страницу коллекции
   // - привязан к одному конкретному продукту → ведём на страницу этого продукта
   // - привязан к нескольким продуктам → клик не назначаем (неоднозначно, куда вести)
-  // Кнопка не имеет своего отдельного обработчика — она внутри кликабельной
-  // области слота, клик по ней всплывает к тому же обработчику.
+  // Ни кнопка, ни видео своих обработчиков не имеют — они внутри кликабельной
+  // области слота, клик по ним всплывает к тому же обработчику.
   const manualProducts = getManualProducts(slotData)
   const href = manualProducts.length === 1
     ? `/pages/product.html?slug=${manualProducts[0].slug}`
