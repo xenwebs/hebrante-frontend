@@ -630,13 +630,13 @@ main {
 
 
 /* --------- BANNERS --------- */
- 
+
 .banner {
     position: relative;
     max-height: 80vh;
     z-index: 1000;
 }
- 
+
 .banner__image {
     width: 100%;
     max-height: 80vh;
@@ -644,7 +644,7 @@ main {
     object-fit: cover;
     object-position: top;
 }
- 
+
 .banner__content {
     width: 100%;
     height: 100%;
@@ -657,7 +657,7 @@ main {
     flex-direction: column;
     justify-content: space-between;
 }
- 
+
 .banner--home__content {
     width: 100%;
     height: 100%;
@@ -672,58 +672,87 @@ main {
     justify-content: flex-end;
     gap: 2vh;
 }
- 
+
 /* Старый флаг тёмного текста — оставлен для обратной совместимости,
    пока не убедишься, что все баннеры переведены на light_text. */
 .black p {
     color: var(--color-black);
 }
- 
+
+/* --------- ВИДЕО СЛОТА --------- */
+
+/* Видео лежит поверх картинки и полностью её перекрывает.
+   Высоту баннера задаёт именно картинка (.banner__image) — видео
+   абсолютное и в поток не попадает. Благодаря этому layout не прыгает,
+   пока видео грузится, и не ломается, если оно так и не запустится.
+
+   Показывает видео banners.js, снимая атрибут hidden. Пока видео нет
+   (или автоплей заблокирован) — виден постер, то есть та же картинка. */
+
+.banner__video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    object-position: top;
+    /* клики проходят сквозь видео к обработчику слота (переход
+       в коллекцию или на карточку товара) */
+    pointer-events: none;
+}
+
+/* Атрибут hidden по умолчанию даёт display: none, но наше
+   display: block выше его перебивает — возвращаем явно. */
+.banner__video[hidden] {
+    display: none;
+}
+
 /* --------- COLLECTION BANNER --------- */
- 
+
 .banner--collection .banner__image {
     aspect-ratio: 1920 / 920;
 }
- 
+
 @media (max-width: 768px) {
     .banner--collection .banner__image--has-mobile {
         aspect-ratio: 1 / 1;
         object-position: center;
     }
 }
- 
+
 /* --------- ТЕКСТОВЫЕ БЛОКИ СЛОТА --------- */
- 
+
 .banner__text {
     display: flex;
     flex-direction: column;
     gap: 1vh;
 }
- 
+
 .banner__eyebrow,
 .banner__heading,
 .banner__subheading {
     margin: 0;
     color: var(--color-black);
 }
- 
+
 .banner__eyebrow {
     font-size: var(--text-md);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     opacity: 0.8;
 }
- 
+
 .banner__heading {
     font-size: var(--h2);
     line-height: 1.1;
 }
- 
+
 .banner__subheading {
     font-size: var(--text-md);
     opacity: 0.85;
 }
- 
+
 /* light_text из Strapi — переключает цвет текста слота на светлый
    (используется на тёмных/насыщенных фото) */
 .banner--light-text .banner__eyebrow,
@@ -731,9 +760,9 @@ main {
 .banner--light-text .banner__subheading {
     color: var(--color-white);
 }
- 
+
 /* --------- КНОПКА СЛОТА --------- */
- 
+
 .banner__button {
     align-self: flex-start;
     margin-top: 1vh;
@@ -751,40 +780,40 @@ main {
     background-color: var(--color-black);
     color: var(--color-white);
 }
- 
+
 .banner__button[hidden] {
     display: none;
 }
- 
+
 /* --------- ВЫРАВНИВАНИЕ КОНТЕНТА ПО ГОРИЗОНТАЛИ --------- */
- 
+
 /* content_align из Strapi — три взаимоисключающих класса, которые вешает
    banners.js на контейнер контента (.banner--home__content или .banner__content).
    Выравнивание ТОЛЬКО по горизонтали: по вертикали блок остаётся внизу
    баннера, это задаёт justify-content: flex-end выше и здесь не меняется.
- 
+
    Блок контента уже растянут на всю ширину слота (width: 100% + padding),
    поэтому дополнительное позиционирование не нужно — достаточно align-items
    у flex-колонки и text-align для многострочного текста.
- 
+
    Если класса нет вообще (баннер создан до появления поля, или JS ещё не
    отработал) — поведение остаётся прежним, то есть слева. */
- 
+
 .banner__content--align-left {
     align-items: flex-start;
     text-align: left;
 }
- 
+
 .banner__content--align-center {
     align-items: center;
     text-align: center;
 }
- 
+
 .banner__content--align-right {
     align-items: flex-end;
     text-align: right;
 }
- 
+
 /* У кнопки собственный align-self: flex-start (см. .banner__button выше),
    он перебивает align-items родителя — поэтому переопределяем точечно.
    Специфичность здесь выше (два класса против одного), порядок правил
@@ -792,20 +821,20 @@ main {
 .banner__content--align-center .banner__button {
     align-self: center;
 }
- 
+
 .banner__content--align-right .banner__button {
     align-self: flex-end;
 }
- 
+
 /* --------- SPLIT-БАННЕР (две половины 50/50) --------- */
- 
+
 .banner--split {
     display: flex;
     flex-direction: row;
     height: 60vh;
     max-height: 80vh;
 }
- 
+
 .banner--split .banner__half {
     position: relative;
     flex: 1 1 50%;
@@ -813,29 +842,29 @@ main {
     height: 100%;
     overflow: hidden;
 }
- 
+
 .banner--split .banner__half .banner__image {
     width: 100%;
     height: 100%;
     max-height: none; /* высоту уже задаёт .banner__half */
 }
- 
+
 .banner--split .banner__half .banner--home__content {
     padding: 4vh 10vw 4vh;
 }
- 
+
 @media (max-width: 768px) {
     /* Половины остаются рядом (не складываются в столбик) — просто сжимаются
        вместе с текстом и отступами, которые уже завязаны на vw/vh. */
     .banner--split {
         height: 45vh;
     }
- 
+
     .banner--split .banner__half .banner--home__content {
         padding: 2vh 4vw 1.5vh;
         gap: 1vh;
     }
- 
+
     .banner__button {
         padding: 1vh 4vw;
     }
