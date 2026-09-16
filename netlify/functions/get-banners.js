@@ -11,6 +11,15 @@ export default async (req) => {
     // ---- content (обязательный слот — единственный слот, либо левая/верхняя половина) ----
     + `&populate[content][populate][image][fields][0]=url`
     + `&populate[content][populate][image_mobile][fields][0]=url`
+    // Видео слота. Картинка при этом остаётся обязательной и работает как
+    // poster — она же показывается, если автоплей заблокирован браузером.
+    // mime нужен фронту для атрибута type у <source>: если клиент зальёт
+    // .mov/quicktime, браузер без поддержки этого формата не станет качать
+    // файл впустую, а сразу оставит постер.
+    + `&populate[content][populate][video][fields][0]=url`
+    + `&populate[content][populate][video][fields][1]=mime`
+    + `&populate[content][populate][video_mobile][fields][0]=url`
+    + `&populate[content][populate][video_mobile][fields][1]=mime`
     + `&populate[content][populate][collection][fields][0]=slug`
     // Ручная привязка конкретных продуктов к слоту (альтернатива collection).
     // Поля продублированы под формат, который ждёт renderManualProducts в banners.js —
@@ -25,13 +34,17 @@ export default async (req) => {
     + `&populate[content][populate][products][populate][images]=true`
     + `&populate[content][populate][products][populate][collection]=true`
     // Скалярные поля компонента (eyebrow/eyebrow_en/heading/heading_en/subheading/
-    // subheading_en/light_text/button_text/button_text_en/button_bg_color/
-    // button_text_color) приходят автоматически при populate компонента —
-    // отдельный fields-список под них не нужен.
+    // subheading_en/light_text/content_align/button_text/button_text_en/
+    // button_bg_color/button_text_color) приходят автоматически при populate
+    // компонента — отдельный fields-список под них не нужен.
 
     // ---- content_2 (необязательный слот — вторая половина при split=true) ----
     + `&populate[content_2][populate][image][fields][0]=url`
     + `&populate[content_2][populate][image_mobile][fields][0]=url`
+    + `&populate[content_2][populate][video][fields][0]=url`
+    + `&populate[content_2][populate][video][fields][1]=mime`
+    + `&populate[content_2][populate][video_mobile][fields][0]=url`
+    + `&populate[content_2][populate][video_mobile][fields][1]=mime`
     + `&populate[content_2][populate][collection][fields][0]=slug`
     + `&populate[content_2][populate][products][fields][0]=title`
     + `&populate[content_2][populate][products][fields][1]=title_en`
