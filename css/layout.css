@@ -2809,6 +2809,12 @@ select.has-error {
     margin: 0;
 }
 
+.hidden-mobile {
+    display: none;
+    visibility: hidden;
+    opacity: 0;
+}
+
 
     .banner {
         position: relative;
