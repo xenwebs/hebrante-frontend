@@ -10,7 +10,9 @@ import { getLanguage } from "./lang.js"
  *     content_2    — необязательный, правая половина (когда split = true)
  * - у каждого слота своя картинка (+ мобильная), необязательное видео
  *   (+ мобильное), свои три текстовых блока (eyebrow/heading/subheading,
- *   каждый — необязательный), своя кнопка (необязательная, с собственными
+ *   каждый — необязательный), необязательный таймер обратного отсчёта
+ *   (countdown_until — дата/время в Strapi, рендерится сразу под heading),
+ *   своя кнопка (необязательная, с собственными
  *   цветами), своё горизонтальное выравнивание текстового блока
  *   (content_align) и своя цель клика
  *   (collection ИЛИ products, взаимоисключение проверяется на бэкенде)
@@ -47,6 +49,20 @@ const CONTENT_ALIGN_DEFAULT = "left"
 // Реестр отрендеренных слотов — нужен, чтобы переключать desktop/mobile версии
 // картинки и видео при ресайзе. Каждая запись — ОДИН слот (у split-баннера их две).
 const mediaRegistry = []
+
+// Порядок и подписи блоков таймера обратного отсчёта. Задаётся полем
+// countdown_until (datetime) в слоте — если оно пустое, таймер не рендерится.
+const COUNTDOWN_UNITS = ["days", "hours", "minutes", "seconds"]
+const COUNTDOWN_LABELS = {
+  ru: { days: "ДНЕЙ", hours: "ЧАС", minutes: "МИН", seconds: "СЕК" },
+  en: { days: "DAYS", hours: "HRS", minutes: "MIN", seconds: "SEC" }
+}
+
+// Реестр id активных setInterval таймеров — нужен по той же причине, что и
+// mediaRegistry: при каждом полном перерендере баннеров (renderBanners())
+// старые таймеры нужно гасить явно, иначе они продолжат тикать в фоне поверх
+// уже удалённых из DOM элементов и будут накапливаться с каждым вызовом.
+const countdownRegistry = []
 
 // Наблюдатель видимости: видео играет только пока баннер в зоне видимости.
 // Без этого три-четыре автоплеящихся ролика ниже первого экрана будут
@@ -90,6 +106,86 @@ function applyContentAlign(contentEl, slotData) {
   CONTENT_ALIGN_VALUES.forEach(value => {
     contentEl.classList.toggle(`banner__content--align-${value}`, value === align)
   })
+}
+
+/**
+ * Возвращает { days, hours, minutes, seconds } от текущего момента до
+ * targetMs. Каждое поле не может быть отрицательным — если время уже
+ * прошло, везде нули (а не отрицательные числа).
+ */
+function getCountdownParts(targetMs) {
+  const diff = Math.max(0, targetMs - Date.now())
+  const totalSeconds = Math.floor(diff / 1000)
+  return {
+    days: Math.floor(totalSeconds / 86400),
+    hours: Math.floor((totalSeconds % 86400) / 3600),
+    minutes: Math.floor((totalSeconds % 3600) / 60),
+    seconds: totalSeconds % 60
+  }
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0")
+}
+
+/**
+ * Разметка таймера. Значения лежат в data-unit — updateCountdownEl()
+ * находит их по этому атрибуту и обновляет раз в секунду точечно,
+ * не пересобирая innerHTML целиком (не сбивает анимации/фокус на кнопке рядом).
+ */
+function countdownHTML(lang) {
+  const labels = COUNTDOWN_LABELS[lang] || COUNTDOWN_LABELS.ru
+  const items = COUNTDOWN_UNITS.map(unit => `
+    <div class="banner__countdown-item">
+      <span class="banner__countdown-value" data-unit="${unit}">00</span>
+      <span class="banner__countdown-label">${labels[unit]}</span>
+    </div>`).join("")
+  return `<div class="banner__countdown">${items}</div>`
+}
+
+function updateCountdownEl(el, targetMs) {
+  const parts = getCountdownParts(targetMs)
+  COUNTDOWN_UNITS.forEach(unit => {
+    const valueEl = el.querySelector(`[data-unit="${unit}"]`)
+    if (valueEl) valueEl.textContent = pad2(parts[unit])
+  })
+  return parts
+}
+
+/**
+ * Запускает тикающий таймер внутри уже вставленной в DOM разметки
+ * (countdownHTML()), если у слота задан countdown_until.
+ * Если дата не задана или не парсится — просто убирает пустой блок таймера
+ * (он мог остаться в разметке от countdownHTML(), вызванного "на всякий
+ * случай" выше по коду — здесь единственная точка, которая решает, жить ему
+ * или нет).
+ * Если время уже истекло на момент рендера — таймер прячется сразу,
+ * setInterval не заводится.
+ */
+function setupCountdown(content, slotData, lang) {
+  const countdownEl = content.querySelector(".banner__countdown")
+  if (!countdownEl) return
+
+  const targetMs = Date.parse(slotData.countdown_until || "")
+  if (!Number.isFinite(targetMs)) {
+    countdownEl.remove()
+    return
+  }
+
+  const tick = () => {
+    const parts = updateCountdownEl(countdownEl, targetMs)
+    const isOver = targetMs <= Date.now()
+    if (isOver) {
+      // Коллекция уже вышла — таймер своё отработал, дальше "00:00:00:00"
+      // висеть незачем. Прячем блок и останавливаем интервал.
+      countdownEl.hidden = true
+      clearInterval(intervalId)
+    }
+  }
+
+  tick()
+  const intervalId = setInterval(tick, 1000)
+  countdownRegistry.push(intervalId)
 }
 
 /**
@@ -341,6 +437,13 @@ export async function renderBanners() {
     visibilityObserver = null
 
     mediaRegistry.length = 0
+
+    // Старые таймеры гасим здесь же, а не в setupCountdown(): их элементы
+    // сейчас будут удалены вместе со старыми баннерами, и до этой точки
+    // они успели бы натикать ещё один-два раза впустую.
+    countdownRegistry.forEach(id => clearInterval(id))
+    countdownRegistry.length = 0
+
     const productTasks = []
     let heroConsumed = false
 
@@ -503,9 +606,17 @@ function updateSlot(slotEl, mediaEntry, slotData) {
     const parts = []
     if (eyebrow) parts.push(`<p class="banner__eyebrow">${eyebrow}</p>`)
     if (heading) parts.push(`<p class="banner__heading">${heading}</p>`)
+    // Таймер — сразу под заголовком, до subheading. countdown_until задаётся
+    // в Strapi (дата и время выхода коллекции); если поле пустое — блок
+    // просто не добавляется в разметку.
+    if (slotData.countdown_until) parts.push(countdownHTML(lang))
     if (subheading) parts.push(`<p class="banner__subheading">${subheading}</p>`)
     textWrap.innerHTML = parts.join("")
     textWrap.style.display = parts.length ? "" : "none"
+
+    // Разметка таймера уже в DOM (если была добавлена выше) — теперь можно
+    // считать значения и запустить тикающий setInterval.
+    setupCountdown(content, slotData, lang)
   }
 
   // content_align — горизонтальное выравнивание текстового блока и кнопки
