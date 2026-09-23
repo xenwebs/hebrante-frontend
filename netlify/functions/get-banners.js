@@ -35,8 +35,11 @@ export default async (req) => {
     + `&populate[content][populate][products][populate][collection]=true`
     // Скалярные поля компонента (eyebrow/eyebrow_en/heading/heading_en/subheading/
     // subheading_en/light_text/content_align/button_text/button_text_en/
-    // button_bg_color/button_text_color) приходят автоматически при populate
-    // компонента — отдельный fields-список под них не нужен.
+    // button_bg_color/button_text_color/countdown_until) приходят автоматически
+    // при populate компонента — отдельный fields-список под них не нужен.
+    // ВАЖНО: это касается и нового поля countdown_until (datetime, таймер
+    // обратного отсчёта) — добавлять его сюда отдельно НЕ нужно, достаточно
+    // завести поле в схеме компонента banner.slot в Strapi.
 
     // ---- content_2 (необязательный слот — вторая половина при split=true) ----
     + `&populate[content_2][populate][image][fields][0]=url`
