@@ -52,9 +52,11 @@ const mediaRegistry = []
 
 // Порядок и подписи блоков таймера обратного отсчёта. Задаётся полем
 // countdown_until (datetime) в слоте — если оно пустое, таймер не рендерится.
+// По умолчанию на сайте испанский (getLanguage() отдаёт "es"), поэтому
+// fallback — тоже испанский, а не русский (русского на сайте нет и не должно быть).
 const COUNTDOWN_UNITS = ["days", "hours", "minutes", "seconds"]
 const COUNTDOWN_LABELS = {
-  ru: { days: "ДНЕЙ", hours: "ЧАС", minutes: "МИН", seconds: "СЕК" },
+  es: { days: "DÍAS", hours: "HORAS", minutes: "MIN", seconds: "SEG" },
   en: { days: "DAYS", hours: "HRS", minutes: "MIN", seconds: "SEC" }
 }
 
@@ -134,7 +136,7 @@ function pad2(n) {
  * не пересобирая innerHTML целиком (не сбивает анимации/фокус на кнопке рядом).
  */
 function countdownHTML(lang) {
-  const labels = COUNTDOWN_LABELS[lang] || COUNTDOWN_LABELS.ru
+  const labels = COUNTDOWN_LABELS[lang] || COUNTDOWN_LABELS.es
   const items = COUNTDOWN_UNITS.map(unit => `
     <div class="banner__countdown-item">
       <span class="banner__countdown-value" data-unit="${unit}">00</span>
