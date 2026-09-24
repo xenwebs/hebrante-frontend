@@ -95,14 +95,28 @@ document.addEventListener("languageChanged", () => {
 
 // ==================== ДАННЫЕ ====================
 
-async function fetchOrder(orderId) {
-  const response = await fetch(`${API_URL}/api/orders/${orderId}`)
+// Таймаут запроса: если Strapi завис, без него await не завершится никогда,
+// catch не сработает и страница останется пустой. С таймаутом сработает
+// запасной рендер (fallback) или сообщение об ошибке.
+const FETCH_TIMEOUT = 10000
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
+async function fetchOrder(orderId) {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT)
+
+  let json
+  try {
+    const response = await fetch(`${API_URL}/api/orders/${orderId}`, { signal: ctrl.signal })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    json = await response.json()
+  } finally {
+    clearTimeout(timer)
   }
 
-  const json = await response.json()
   const order = json.data
 
   if (!order) throw new Error("Pedido no encontrado")

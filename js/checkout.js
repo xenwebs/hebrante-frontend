@@ -6,6 +6,18 @@ import { initLanguage } from "./lang.js"
 
 const API_URL = "https://proper-gem-a18dd78c57.strapiapp.com"
 
+// fetch с таймаутом: без него зависший запрос оставляет кнопку в состоянии
+// «Creando pedido...» навсегда, а catch в handleSubmit никогда не срабатывает
+async function fetchWithTimeout(url, options = {}, ms = 12000) {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), ms)
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 // 🔑 BOLD API CONFIGURATION
 const BOLD_CONFIG = {
   PUBLIC_KEY: "FjqKPK8KF8uY_6Ca13ZCaNEm928t9Lyz0SC33LRCiHY",
@@ -570,15 +582,41 @@ async function handleSubmit(e, cart) {
     // 2️⃣ Передаём в Bold именно orderRef
     await processPaymentWithBold(cart, null, orderRef)
 
+    // Кнопка Bold вставлена — не оставляем «Creando pedido...» висеть вечно:
+    // человек должен понять, что заказ создан и надо нажать кнопку оплаты
+    submitBtn.textContent = "Pedido creado"
+    showSuccess("Pedido creado. Presiona el botón de pago para continuar con Bold.")
+    watchBoldButton(submitBtn, originalText)
+
   } catch (error) {
     console.error("Order creation error:", error)
-    showError("Error al crear el pedido. Por favor intenta de nuevo.")
+    showError("Error al procesar el pedido. Por favor intenta de nuevo.")
     submitBtn.disabled = false
     submitBtn.textContent = originalText
   }
 }
 
 // ==================== BOLD PAYMENT PROCESSING ====================
+
+// Если Bold так и не нарисовал кнопку оплаты (библиотека не загрузилась,
+// заблокирована, медленная сеть) — не оставляем человека в тупике:
+// показываем ошибку и возвращаем кнопку «Confirmar Pedido» для повторной попытки.
+// ⚠️ Проверка «отрисовалась ли кнопка» — любой дочерний элемент контейнера, кроме
+// нашего <script>. Убедись в браузере, что Bold рисует кнопку именно в контейнере.
+function watchBoldButton(submitBtn, originalText, ms = 8000) {
+  setTimeout(() => {
+    const container = document.getElementById("bold-button-container")
+    if (!container) return
+
+    const rendered = Array.from(container.children).some(el => el.tagName !== "SCRIPT")
+    if (rendered) return
+
+    console.error(`❌ Bold no mostró el botón de pago tras ${ms} ms`)
+    showError("No se pudo cargar el botón de pago. Intenta de nuevo o recarga la página.")
+    submitBtn.disabled = false
+    submitBtn.textContent = originalText
+  }, ms)
+}
 
 async function initBold() {
   return new Promise((resolve, reject) => {
@@ -622,7 +660,7 @@ async function processPaymentWithBold(cart, formData, orderId) {
     console.log("Datos:", { orderId, amount: total, currency: "COP" })
 
     // 1️⃣ Получи хеш с backend
-    const signRes = await fetch(`/.netlify/functions/generate-hash`, {
+    const signRes = await fetchWithTimeout(`/.netlify/functions/generate-hash`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -630,17 +668,28 @@ async function processPaymentWithBold(cart, formData, orderId) {
         amount: total,
         currency: "COP"
       })
-    })
+    }, 10000)
+
+    if (!signRes.ok) {
+      throw new Error(`generate-hash HTTP ${signRes.status}`)
+    }
 
     const signData = await signRes.json()
     console.log("✅ Datos del backend:", signData)
+
+    // Sin firma Bold-кнопка молча не работает (data-integrity-signature="undefined"),
+    // поэтому лучше упасть здесь и показать ошибку, чем оставить человека без кнопки
+    const integritySignature = signData.buttonConfig?.integritySignature || signData.integritySignature
+    if (!integritySignature) {
+      throw new Error("generate-hash no devolvió integritySignature")
+    }
 
     const buttonConfig = signData.buttonConfig || {
       apiKey: BOLD_CONFIG.PUBLIC_KEY,
       orderId: `ORD-${orderId}`,
       amount: total.toString(),
       currency: "COP",
-      integritySignature: signData.integritySignature,
+      integritySignature,
       redirectionUrl: window.location.origin + `/pages/order-confirmation.html?order_id=${orderId}`,
       description: `Pedido #${orderId}`
     }
@@ -740,13 +789,13 @@ async function createOrder(cart) {
 
     console.log("📤 Enviando pedido a Strapi:", orderData)
 
-    const response = await fetch(`${API_URL}/api/orders`, {
+    const response = await fetchWithTimeout(`${API_URL}/api/orders`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(orderData)
-    })
+    }, 15000)
 
     if (!response.ok) {
       const errorData = await response.json()
@@ -846,6 +895,10 @@ function showError(message) {
   errorEl.style.padding = "10px"
   errorEl.style.borderRadius = "4px"
   errorEl.style.marginBottom = "15px"
+
+  // Блок сообщений стоит вверху формы — на мобильном человек нажимает кнопку
+  // внизу и иначе просто не увидит ошибку
+  errorEl.scrollIntoView({ behavior: "smooth", block: "center" })
 }
 
 function showSuccess(message) {
@@ -859,4 +912,5 @@ function showSuccess(message) {
   errorEl.style.padding = "10px"
   errorEl.style.borderRadius = "4px"
   errorEl.style.marginBottom = "15px"
+  errorEl.scrollIntoView({ behavior: "smooth", block: "center" })
 }
