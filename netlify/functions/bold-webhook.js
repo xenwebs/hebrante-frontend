@@ -49,7 +49,11 @@ export const handler = async (event) => {
   const isValid = matches(sigFromBase64) || matches(sigFromRaw)
 
   if (!isValid) {
-    console.warn("⚠️ Firma inválida. Verifica que BOLD_SECRET_KEY sea la LLAVE SECRETA de 'Botón de pagos' (producción).")
+    console.warn("⚠️ Firma inválida. Verifica que BOLD_SECRET_KEY sea la LLAVE SECRETA de 'Botón de pagos' (producción).", JSON.stringify({
+      hasSignatureHeader: Boolean(signature),
+      bodyBytes: rawBytes.length,
+      isBase64Encoded: Boolean(event.isBase64Encoded)
+    }))
     return { statusCode: 401, body: "Invalid signature" }
   }
 
@@ -61,18 +65,32 @@ export const handler = async (event) => {
     return { statusCode: 400, body: "Invalid JSON" }
   }
 
-  console.log("📩 Evento Bold:", payload.type)
+  const data = payload.data || {}
+
+  // Resumen de cada evento (Netlify antepone el request id a cada línea)
+  console.log("📩 Evento Bold:", payload.type, JSON.stringify({
+    event_id: payload.id,
+    subject: payload.subject,
+    time: payload.time,
+    payment_id: data.payment_id,
+    reference: data.metadata?.reference ?? null,
+    amount: data.amount,
+    payment_method: data.payment_method,
+    dataKeys: Object.keys(data)
+  }))
 
   if (payload.type !== "SALE_APPROVED") {
+    // Para rechazos/otros eventos guardamos el payload completo (motivo del rechazo, etc.)
+    console.log("ℹ️ Evento ignorado, payload:", JSON.stringify(payload).slice(0, 4000))
     return { statusCode: 200, body: "ignored" }
   }
 
-  const data = payload.data || {}
-  const reference = data.metadata?.reference || ""
+  const reference = String(data.metadata?.reference || "")
   const orderRef = reference.replace("ORD-", "")
 
   if (!orderRef) {
-    console.error("❌ Sin referencia de pedido (ORD-xxx) en el webhook")
+    // Payload completo: aquí se ve dónde (o si) vino la referencia, y quién pagó
+    console.error("❌ Sin referencia de pedido (ORD-xxx) en el webhook. Payload:", JSON.stringify(payload).slice(0, 4000))
     return { statusCode: 200, body: "no reference" }
   }
 
@@ -84,6 +102,12 @@ export const handler = async (event) => {
         headers: { "Authorization": `Bearer ${STRAPI_API_TOKEN}` }
       })
       order = (await getRes.json())?.data || {}
+      console.log("ℹ️ Pedido leído de Strapi:", orderRef, JSON.stringify({
+        httpStatus: getRes.status,
+        found: Boolean(order.id || order.documentId),
+        orderStatus: order.orderStatus,
+        items: Array.isArray(order.items) ? order.items.length : 0
+      }))
     } catch (e) {
       // Strapi lento o caído (p.ej. en pleno redeploy): devolvemos 503 para que
       // Bold REINTENTE el webhook más tarde, en vez de perder el pedido.
