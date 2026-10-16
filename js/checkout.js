@@ -267,70 +267,39 @@ async function validateAndApplyPromo(code, cart) {
     
     console.log(`🔍 Validando código de promoción: ${code}`)
     
-    // Buscar el código en Strapi
-    const response = await fetch(`${API_URL}/api/promo-codes?filters[code][$eqi]=${code}&filters[is_active][$eq]=true&populate=applicable_products`)
-    
+    // Вся проверка (активен ли код, даты, лимит использований, минимальная
+    // сумма, применимые товары) идёт на сервере — Netlify-функция validate-promo.
+    // Браузер больше не ходит в Strapi за промокодами напрямую.
+    const response = await fetchWithTimeout(`/.netlify/functions/validate-promo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code,
+        cart: cart.map(item => ({ id: item.id, price: item.price, quantity: item.quantity }))
+      })
+    }, 10000)
+
     if (!response.ok) {
-      throw new Error("Error al validar promoción")
+      throw new Error(`validate-promo HTTP ${response.status}`)
     }
 
-    const data = await response.json()
-    console.log("📋 Respuesta de Strapi:", data)
+    const result = await response.json()
+    console.log("📋 Respuesta de validate-promo:", result)
 
-    // Verificar si el código existe y está activo
-    if (!data.data || data.data.length === 0) {
-      showPromoError("Código de promoción no válido o inactivo")
+    if (!result.valid) {
+      showPromoError(promoErrorMessage(result))
       return
     }
 
-    const promoData = data.data[0]
-    const today = new Date().toISOString().split('T')[0]
-
-    // Validar fechas si existen
-    if (promoData.valid_from && promoData.valid_from > today) {
-      showPromoError("Este código aún no está disponible")
-      return
-    }
-
-    if (promoData.valid_until && promoData.valid_until < today) {
-      showPromoError("Este código ha expirado")
-      return
-    }
-
-    // Validar monto mínimo de compra si existe
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-    if (promoData.min_purchase_amount && subtotal < promoData.min_purchase_amount) {
-      const formatter = new Intl.NumberFormat("es-CO")
-      showPromoError(`Monto mínimo de compra: $${formatter.format(promoData.min_purchase_amount)}`)
-      return
-    }
-
-    // Determinar productos aplicables (si la lista está vacía => aplica a todos)
-    // Soporta tanto formato plano (Strapi v5: array directo) como formato
-    // envuelto (Strapi v4/plugin config: { data: [...] })
-    // NOTA: en el carrito, item.id en realidad contiene el SLUG del producto
-    // (no el id numérico de Strapi), así que comparamos por slug.
-    const rawApplicable = promoData.applicable_products
-    const relatedProducts = Array.isArray(rawApplicable)
-      ? rawApplicable
-      : (rawApplicable && Array.isArray(rawApplicable.data) ? rawApplicable.data : [])
-    const applicableIds = relatedProducts.length > 0
-      ? relatedProducts.map(p => p.slug || p.id)
+    // null → промокод действует на всю корзину; иначе список slug'ов товаров
+    // (в корзине item.id на самом деле содержит slug, не числовой id Strapi)
+    const applicableIds = Array.isArray(result.applicableIds) && result.applicableIds.length > 0
+      ? result.applicableIds
       : null
 
-    // Si el código aplica solo a ciertos productos, verificar que al menos
-    // uno de ellos esté en el carrito
-    if (applicableIds) {
-      const hasEligibleItem = cart.some(item => applicableIds.includes(item.id))
-      if (!hasEligibleItem) {
-        showPromoError("Este código no aplica a los productos de tu carrito")
-        return
-      }
-    }
-
     // ✅ Aplicar descuento
-    appliedPromoCode = code
-    discountPercent = promoData.discount_percent || 0
+    appliedPromoCode = result.code || code
+    discountPercent = result.discountPercent || 0
     promoApplicableProductIds = applicableIds
 
     console.log(`✅ Promoción aplicada: ${code} (${discountPercent}% descuento)`, applicableIds ? `→ solo productos: ${applicableIds.join(", ")}` : "→ todo el carrito")
@@ -362,6 +331,30 @@ async function validateAndApplyPromo(code, cart) {
     console.error("❌ Error validando promoción:", error)
     showPromoError("Error al validar el código. Intenta de nuevo.")
     return
+  }
+}
+
+// Тексты ошибок по коду от сервера (validate-promo / generate-hash)
+function promoErrorMessage(result) {
+  switch (result.error) {
+    case "invalid":
+      return "Código de promoción no válido o inactivo"
+    case "not_started":
+      return "Este código aún no está disponible"
+    case "expired":
+      return "Este código ha expirado"
+    case "exhausted":
+      return "Este código ya fue utilizado"
+    case "min_purchase":
+      if (result.minPurchase) {
+        const formatter = new Intl.NumberFormat("es-CO")
+        return `Monto mínimo de compra: $${formatter.format(result.minPurchase)}`
+      }
+      return "No se cumple el monto mínimo de compra de este código"
+    case "not_applicable":
+      return "Este código no aplica a los productos de tu carrito"
+    default:
+      return "No se pudo validar el código"
   }
 }
 
@@ -590,7 +583,15 @@ async function handleSubmit(e, cart) {
 
   } catch (error) {
     console.error("Order creation error:", error)
-    showError("Error al procesar el pedido. Por favor intenta de nuevo.")
+    if (typeof error.code === "string" && error.code.startsWith("promo_")) {
+      // Сервер отказал в подписи из-за промокода (уже использован, истёк, не совпал).
+      // Снимаем скидку, чтобы человек увидел настоящий итог и подтвердил заказ заново.
+      clearPromoCode(cart)
+      const reason = promoErrorMessage({ error: error.code.slice("promo_".length) })
+      showError(`${reason}. Se quitó el descuento; revisa el total y confirma el pedido de nuevo.`)
+    } else {
+      showError("Error al procesar el pedido. Por favor intenta de nuevo.")
+    }
     submitBtn.disabled = false
     submitBtn.textContent = originalText
   }
@@ -671,7 +672,11 @@ async function processPaymentWithBold(cart, formData, orderId) {
     }, 10000)
 
     if (!signRes.ok) {
-      throw new Error(`generate-hash HTTP ${signRes.status}`)
+      // Сервер объясняет причину отказа кодом (promo_exhausted, promo_expired, ...)
+      const errBody = await signRes.json().catch(() => ({}))
+      const err = new Error(`generate-hash HTTP ${signRes.status}`)
+      err.code = errBody.error
+      throw err
     }
 
     const signData = await signRes.json()
