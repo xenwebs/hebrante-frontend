@@ -137,6 +137,7 @@ export const handler = async (event) => {
             shippingStatus: "awaiting_shipment",
             paymentId: String(data.payment_id || ""),
             paymentMethod: String(data.payment_method || "Bold"),
+            payerEmail: data.payer_email ? String(data.payer_email).trim() : null,
             paidAt: data.created_at || new Date().toISOString(),
             paymentDetails: data
           }
