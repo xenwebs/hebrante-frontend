@@ -15,7 +15,7 @@ const STRAPI_URL = (process.env.STRAPI_URL || "https://proper-gem-a18dd78c57.str
 const STRAPI_TOKEN = (process.env.STRAPI_API_TOKEN || "").trim()
 
 // Допустимые символы кода (после trim + toUpperCase)
-const CODE_PATTERN = /^[A-Z0-9_-]{1,40}$/
+const CODE_PATTERN = /^[A-Z0-9._@+-]{1,40}$/
 
 export function json(statusCode, body) {
   return {
