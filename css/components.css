@@ -233,7 +233,32 @@ main {
  
 .product-card__price-old {
     color: var(--color-price-old);
-    text-decoration: line-through;
+}
+
+/* Старая цена: диагональное зачёркивание вместо горизонтального,
+   чтобы линия не перекрывала цифры по центру.
+   Линия идёт из левого нижнего угла в правый верхний,
+   толщина в em — масштабируется вместе со шрифтом. */
+.product-card__price-old,
+.product__price-old {
+    position: relative;
+    display: inline-block;
+    text-decoration: none;
+}
+
+.product-card__price-old::after,
+.product__price-old::after {
+    content: "";
+    position: absolute;
+    inset: 0 -0.1em;
+    background: linear-gradient(
+        to bottom right,
+        transparent calc(50% - 0.04em),
+        currentColor calc(50% - 0.04em),
+        currentColor calc(50% + 0.04em),
+        transparent calc(50% + 0.04em)
+    );
+    pointer-events: none;
 }
  
 /* --------- МОБИЛЬНАЯ АДАПТАЦИЯ --------- */

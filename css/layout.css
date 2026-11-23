@@ -1611,7 +1611,6 @@ main {
     font-size: var(--h3);
     font-weight: var(--text-light);
     color: var(--color-price-old);
-    text-decoration: line-through;
 }
 
 .product__badge {
