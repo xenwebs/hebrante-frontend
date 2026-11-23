@@ -3,7 +3,7 @@
 
 const GOOGLE_SHEETS_API_KEY = process.env.GOOGLE_SHEETS_API_KEY
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID
-const SHEET_NAME = "INVENTARIOS"
+const SHEET_NAME = "INVENTARIO"
 const SIZES = ['xxs', 'xs', 's', 'm', 'l', 'xl']
 
 export const handler = async (event) => {
